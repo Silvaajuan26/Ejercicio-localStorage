@@ -1,3 +1,4 @@
+const API_URL = "http://localhost:3000/cards";
 const sectionCard = document.getElementById('group-card');
 const notification = document.getElementById('notifi');
 const searchSection = document.getElementById('sec-search');
@@ -16,15 +17,38 @@ document.getElementById('form-items').addEventListener('submit', (event) => {
     })
 })
 
-function addObjects(name, description) {
-    const obj = {
-        name: name,
-        description: description
+async function addObjects(name, description) {
+    const obj = { name, description };
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(obj)
+        });
+        const newCard = await response.json();
+        array.unshift(newCard);
+        CreateCard(newCard.name, newCard.description, sectionCard);
+        ActionNotification(1);
+    } catch (error) {
+        console.error("Error al crear la tarjeta:", error);
     }
-
-    array.unshift(obj);
-    localStorage.setItem('Cards', JSON.stringify(array));
 }
+
+
+async function fetchCards() {
+    try {
+        const response = await fetch(API_URL);
+        array = await response.json();
+        array.reverse().forEach(card => {
+            CreateCard(card.name, card.description, sectionCard);
+        });
+    } catch (error) {
+        console.error("Error al obtener las tarjetas:", error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', fetchCards);
+
 
 function CreateCard(name, description, idSection) {
     const divCard = document.createElement("div");
@@ -76,133 +100,62 @@ function CreateCard(name, description, idSection) {
     }, { once: true });
 }
 
-function DeleteCard(name, cardElement) {
-
-    array = array.filter(item => item.name !== name);
-    localStorage.setItem('Cards', JSON.stringify(array));
-
-    
-    cardElement.remove();
-
-    
-    ActionNotification(2, "Elemento eliminado");
-}
-
-function EditCard(name, description, cardElement) {
-    
-    document.getElementById('name-acti').value = name;
-    document.getElementById('description').value = description;
-
-    
-    const submitButton = document.querySelector('#form-items button[type="submit"]');
-    submitButton.textContent = "Actualizar";
-
-   
-    submitButton.addEventListener('click', function onUpdate(event) {
-        event.preventDefault();
-
-        
-        const updatedName = document.getElementById('name-acti').value;
-        const updatedDescription = document.getElementById('description').value;
-
-        
-        const index = array.findIndex(item => item.name === name);
-        if (index !== -1) {
-            array[index] = { name: updatedName, description: updatedDescription };
-            localStorage.setItem('Cards', JSON.stringify(array));
+async function DeleteCard(name, cardElement) {
+    const cardToDelete = array.find(item => item.name === name);
+    if (cardToDelete) {
+        try {
+            await fetch(`${API_URL}/${cardToDelete.id}`, { method: 'DELETE' });
+            array = array.filter(item => item.id !== cardToDelete.id);
+            cardElement.remove();
+            ActionNotification(2, "Elemento eliminado");
+        } catch (error) {
+            console.error("Error al eliminar la tarjeta:", error);
         }
-
-        
-        cardElement.querySelector('.card-title').textContent = updatedName;
-        cardElement.querySelector('.card-text').textContent = updatedDescription;
-
-        
-        document.getElementById('form-items').reset();
-        submitButton.textContent = "Agregar";
-        submitButton.removeEventListener('click', onUpdate);
-
-        
-        ActionNotification(1, "Elemento actualizado");
-    }, { once: true });
+    }
 }
 
-document.getElementById('btn-delete-all').addEventListener('click', () => {
+
+async function EditCard(name, description, cardElement) {
+    const cardToEdit = array.find(item => item.name === name);
+    if (cardToEdit) {
+        const updatedName = prompt("Nuevo nombre:", name);
+        const updatedDescription = prompt("Nueva descripción:", description);
+        const updatedCard = { ...cardToEdit, name: updatedName, description: updatedDescription };
+
+        try {
+            await fetch(`${API_URL}/${cardToEdit.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedCard)
+            });
+            cardElement.querySelector('.card-title').textContent = updatedName;
+            cardElement.querySelector('.card-text').textContent = updatedDescription;
+            ActionNotification(1, "Elemento actualizado");
+        } catch (error) {
+            console.error("Error al actualizar la tarjeta:", error);
+        }
+    }
+}
+
+
+async function deleteAllCards() {
     if (confirm("¿Estás seguro de que deseas eliminar todos los elementos?")) {
-       
-        array = [];
-        localStorage.removeItem('Cards');
-
-        
-        sectionCard.innerHTML = "";
-
-        
-        ActionNotification(2, "Todos los elementos eliminados");
+        try {
+            for (const card of array) {
+                await fetch(`${API_URL}/${card.id}`, { method: 'DELETE' });
+            }
+            array = [];
+            sectionCard.innerHTML = "";
+            ActionNotification(2, "Todos los elementos eliminados");
+        } catch (error) {
+            console.error("Error al eliminar todas las tarjetas:", error);
+        }
     }
-});
-
-function EditCard(name, description, cardElement) {
-    const modal = document.getElementById('edit-modal');
-    const editName = document.getElementById('edit-name');
-    const editDescription = document.getElementById('edit-description');
-    const saveButton = document.getElementById('save-edit');
-    const closeModal = document.getElementById('close-modal');
-
-    
-    editName.value = name;
-    editDescription.value = description;
-
-    
-    modal.style.display = 'flex';
-
-   
-    saveButton.onclick = () => {
-        const updatedName = editName.value;
-        const updatedDescription = editDescription.value;
-
-        
-        const index = array.findIndex(item => item.name === name);
-        if (index !== -1) {
-            array[index] = { name: updatedName, description: updatedDescription };
-            localStorage.setItem('Cards', JSON.stringify(array));
-        }
-
-        
-        cardElement.querySelector('.card-title').textContent = updatedName;
-        cardElement.querySelector('.card-text').textContent = updatedDescription;
-
-        
-        modal.style.display = 'none';
-
-        
-        ActionNotification(1, "Elemento actualizado");
-    };
-
-    
-    closeModal.onclick = () => {
-        modal.style.display = 'none';
-    };
-
-    
-    window.onclick = (event) => {
-        if (event.target === modal) {
-            modal.style.display = 'none';
-        }
-    };
 }
 
+document.getElementById('btn-delete-all').addEventListener('click', deleteAllCards);
 
-document.addEventListener('DOMContentLoaded', () => {
-    const data = JSON.parse(localStorage.getItem('Cards'));
-    if (data != null) {
-        array = data
-        const inverse = array.slice();
-        inverse.reverse().forEach((e) => {
-            document.startViewTransition(() => {
-                CreateCard(e.name, e.description, sectionCard)
-            })
-        });
-    }
-})
+
 
 function ActionNotification(key) {
     switch (key) {
@@ -224,7 +177,7 @@ function ActionNotification(key) {
             break;
     }
 }
-/* btn-close */
+
 document.getElementById('btn-search').addEventListener('click', () => {
     document.startViewTransition(() => {
         searchSection.style.display = "flex";
